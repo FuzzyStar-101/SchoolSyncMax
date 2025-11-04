@@ -1000,42 +1000,46 @@ def health_check():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=app.config['DEBUG'])
-
+    @app.route('/update_profile', methods=['PUT'])
+    def update_profile():
         data = request.get_json()
         name = sanitize_input(data.get('name'))
         username = sanitize_input(data.get('username'))
         avatar_type = data.get('avatar_type', 'initial')
         avatar_data = data.get('avatar_data', '')
-        
+    
         if not name or not username:
             return jsonify({'success': False, 'message': 'Name and username required'})
-        
-        # Check username uniqueness
+    
+        user = User.query.get(session['user_id'])
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'})
+    
         existing = User.query.filter_by(username=username).filter(User.user_id != session['user_id']).first()
         if existing:
             return jsonify({'success': False, 'message': 'Username already taken'})
-        
+    
         username_changed = (user.username != username)
-        
-        # Handle avatar upload to Cloudinary
+    
         if avatar_type == 'uploaded' and avatar_data.startswith('data:image'):
             cloud_url = upload_to_cloudinary(avatar_data)
             if cloud_url:
                 avatar_data = cloud_url
-        
+    
         user.name = name
         user.username = username
         user.avatar_type = avatar_type
         user.avatar_data = avatar_data
-        
+    
         db.session.commit()
-        
+    
         session['name'] = name
         session['username'] = username
-        
+    
         app.logger.info(f"User {user.user_id} updated profile")
-        
+    
         return jsonify({'success': True, 'username_changed': username_changed})
+
 
 @app.route('/api/change-password', methods=['POST'])
 @login_required
@@ -1297,4 +1301,5 @@ def homework_api():
         return jsonify({'success': True, 'id': hw_id})
     
     elif request.method ==
+
 
