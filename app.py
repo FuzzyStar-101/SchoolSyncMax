@@ -38,8 +38,12 @@ if app.config['SENTRY_DSN']:
 # Initialize extensions
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
-socketio = SocketIO(app, cors_allowed_origins="*", manage_session=False, 
-                    message_queue=app.config['SOCKETIO_MESSAGE_QUEUE'])
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    manage_session=False,
+    message_queue=app.config.get('SOCKETIO_MESSAGE_QUEUE', None)
+)
 
 # Initialize rate limiter
 limiter = Limiter(
@@ -997,48 +1001,47 @@ def ratelimit_handler(e):
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=app.config['DEBUG'])
-    @app.route('/update_profile', methods=['PUT'])
-    def update_profile():
-        data = request.get_json()
-        name = sanitize_input(data.get('name'))
-        username = sanitize_input(data.get('username'))
-        avatar_type = data.get('avatar_type', 'initial')
-        avatar_data = data.get('avatar_data', '')
-    
-        if not name or not username:
-            return jsonify({'success': False, 'message': 'Name and username required'})
-    
-        user = User.query.get(session['user_id'])
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'})
-    
-        existing = User.query.filter_by(username=username).filter(User.user_id != session['user_id']).first()
-        if existing:
-            return jsonify({'success': False, 'message': 'Username already taken'})
-    
-        username_changed = (user.username != username)
-    
-        if avatar_type == 'uploaded' and avatar_data.startswith('data:image'):
-            cloud_url = upload_to_cloudinary(avatar_data)
-            if cloud_url:
-                avatar_data = cloud_url
-    
-        user.name = name
-        user.username = username
-        user.avatar_type = avatar_type
-        user.avatar_data = avatar_data
-    
-        db.session.commit()
-    
-        session['name'] = name
-        session['username'] = username
-    
-        app.logger.info(f"User {user.user_id} updated profile")
-    
-        return jsonify({'success': True, 'username_changed': username_changed})
+@app.route('/update_profile', methods=['PUT'])
+def update_profile():
+    data = request.get_json()
+    name = sanitize_input(data.get('name'))
+    username = sanitize_input(data.get('username'))
+    avatar_type = data.get('avatar_type', 'initial')
+    avatar_data = data.get('avatar_data', '')
+
+    if not name or not username:
+        return jsonify({'success': False, 'message': 'Name and username required'})
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'})
+
+    existing = User.query.filter_by(username=username).filter(User.user_id != session['user_id']).first()
+    if existing:
+        return jsonify({'success': False, 'message': 'Username already taken'})
+
+    username_changed = (user.username != username)
+
+    if avatar_type == 'uploaded' and avatar_data.startswith('data:image'):
+        cloud_url = upload_to_cloudinary(avatar_data)
+        if cloud_url:
+            avatar_data = cloud_url
+
+    user.name = name
+    user.username = username
+    user.avatar_type = avatar_type
+    user.avatar_data = avatar_data
+
+    db.session.commit()
+
+    session['name'] = name
+    session['username'] = username
+
+    app.logger.info(f"User {user.user_id} updated profile")
+
+    return jsonify({'success': True, 'username_changed': username_changed})
+
+
 
 
 @app.route('/api/change-password', methods=['POST'])
@@ -1260,46 +1263,51 @@ def check_conflicts():
 @app.route('/api/homework', methods=['GET', 'POST', 'DELETE'])
 @login_required
 @limiter.limit("60 per minute")
-def homework_api():
-    if request.method == 'GET':
-        page = request.args.get('page', 1, type=int)
-        per_page = 50
-        
-        query = Homework.query
-        if session['role'] == 'student':
-            query = query.filter_by(class_name=session.get('class', ''))
-        
-        homeworks = query.order_by(Homework.due_date).paginate(page=page, per_page=per_page, error_out=False)
-        
-        return jsonify([{
-            'id': h.id,
-            'subject': h.subject,
-            'title': h.title,
-            'description': h.description,
-            'date_given': h.date_given.isoformat(),
-            'due_date': h.due_date.isoformat(),
-            'class': h.class_name
-        } for h in homeworks.items])
-    
-    elif request.method == 'POST':
-        data = request.get_json()
-        hw_id = f"HW{int(datetime.utcnow().timestamp())}"
-        
-        homework = Homework(
-            id=hw_id,
-            subject=sanitize_input(data['subject']),
-            title=sanitize_input(data['title']),
-            description=sanitize_input(data.get('description', '')),
-            date_given=datetime.fromisoformat(data['date_given']),
-            due_date=datetime.fromisoformat(data['due_date']),
-            class_name=sanitize_input(data['class']),
-            created_by=session['user_id']
-        )
-        db.session.add(homework)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'id': hw_id})
-    
-    elif request.method ==
+@app.route('/update_profile', methods=['PUT'])
+def update_profile():
+    data = request.get_json()
+    name = sanitize_input(data.get('name'))
+    username = sanitize_input(data.get('username'))
+    avatar_type = data.get('avatar_type', 'initial')
+    avatar_data = data.get('avatar_data', '')
+
+    if not name or not username:
+        return jsonify({'success': False, 'message': 'Name and username required'})
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'})
+
+    existing = User.query.filter_by(username=username).filter(User.user_id != session['user_id']).first()
+    if existing:
+        return jsonify({'success': False, 'message': 'Username already taken'})
+
+    username_changed = (user.username != username)
+
+    if avatar_type == 'uploaded' and avatar_data.startswith('data:image'):
+        cloud_url = upload_to_cloudinary(avatar_data)
+        if cloud_url:
+            avatar_data = cloud_url
+
+    user.name = name
+    user.username = username
+    user.avatar_type = avatar_type
+    user.avatar_data = avatar_data
+
+    db.session.commit()
+
+    session['name'] = name
+    session['username'] = username
+
+    app.logger.info(f"User {user.user_id} updated profile")
+
+    return jsonify({'success': True, 'username_changed': username_changed})
+
+    # ✅ This must always come last
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=app.config.get('DEBUG', False))
+
+
 
 
