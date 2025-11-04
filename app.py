@@ -27,7 +27,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Initialize Sentry for error tracking
-if app.config['SENTRY_DSN']:
+if app.config.get('SENTRY_DSN') and app.config['SENTRY_DSN'].strip():
     sentry_sdk.init(
         dsn=app.config['SENTRY_DSN'],
         integrations=[FlaskIntegration()],
@@ -1348,6 +1348,7 @@ def update_profile():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=app.config['DEBUG'])
+
 
 
 
