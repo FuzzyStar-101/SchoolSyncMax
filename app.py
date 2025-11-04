@@ -999,7 +999,8 @@ def health_check():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=app.config['DEBUG'])'PUT':
+    socketio.run(app, host='0.0.0.0', port=port, debug=app.config['DEBUG'])
+
         data = request.get_json()
         name = sanitize_input(data.get('name'))
         username = sanitize_input(data.get('username'))
@@ -1296,3 +1297,4 @@ def homework_api():
         return jsonify({'success': True, 'id': hw_id})
     
     elif request.method ==
+
