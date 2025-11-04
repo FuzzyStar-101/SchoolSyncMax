@@ -1295,4 +1295,3 @@ def homework_api():
         
         return jsonify({'success': True, 'id': hw_id})
     
-    elif request.method ==
