@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title">
+    <i class="fas fa-file-upload"></i>
+    Import Data
+</div>
+
+<div class="card">
+    <div id="uploadZone" style="border: 2px dashed #cbd5e1; border-radius: 15px; padding: 60px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.3s;"
+         ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #3b82f6; margin-bottom: 20px;"></i>
+        <h3 style="margin-bottom: 10px;">Drag & Drop or Click to Upload</h3>
+        <p style="color: #64748b;">Supported formats: CSV, Excel (XLSX), JSON</p>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.json" style="display: none;" onchange="handleFileSelect(event)">
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <label style="display: block; margin-bottom: 10px; font-weight: 600;">Data Type:</label>
+        <select id="dataType" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <option value="auto-detect">Auto-detect</option>
+            <option value="students">Students</option>
+            <option value="teachers">Teachers</option>
+            <option value="schedule">Schedule</option>
+            <option value="homework">Homework</option>
+            <option value="grades">Grades</option>
+        </select>
+    </div>
+</div>
+
+<div id="feedbackChat" class="card" style="display: none; margin-top: 20px;">
+    <h3 style="margin-bottom: 20px;">
+        <i class="fas fa-robot"></i> Upload Assistant
+    </h3>
+    <div id="feedbackMessages" style="max-height: 300px; overflow-y: auto;"></div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h3 style="margin-bottom: 20px;">
+        <i class="fas fa-question-circle"></i> Required Columns for Each Data Type
+    </h3>
+    <div class="grid grid-3">
+        <div style="padding: 20px; background: #f8fafc; border-radius: 10px;">
+            <h4 style="color: #3b82f6; margin-bottom: 15px;">Students</h4>
+            <ul style="list-style: none; padding: 0; color: #64748b; line-height: 2;">
+                <li><strong>name*</strong></li>
+                <li>class</li>
+                <li>username</li>
+                <li>password</li>
+                <li>email</li>
+                <li>phone</li>
+            </ul>
+        </div>
+        <div style="padding: 20px; background: #f8fafc; border-radius: 10px;">
+            <h4 style="color: #10b981; margin-bottom: 15px;">Teachers</h4>
+            <ul style="list-style: none; padding: 0; color: #64748b; line-height: 2;">
+                <li><strong>name*</strong></li>
+                <li>subjects</li>
+                <li>classes</li>
+                <li>username</li>
+                <li>password</li>
+            </ul>
+        </div>
+        <div style="padding: 20px; background: #f8fafc; border-radius: 10px;">
+            <h4 style="color: #f59e0b; margin-bottom: 15px;">Schedule</h4>
+            <ul style="list-style: none; padding: 0; color: #64748b; line-height: 2;">
+                <li><strong>class*</strong></li>
+                <li><strong>day*</strong></li>
+                <li><strong>period*</strong></li>
+                <li><strong>subject*</strong></li>
+            </ul>
+        </div>
+        <div style="padding: 20px; background: #f8fafc; border-radius: 10px;">
+            <h4 style="color: #ef4444; margin-bottom: 15px;">Homework</h4>
+            <ul style="list-style: none; padding: 0; color: #64748b; line-height: 2;">
+                <li><strong>subject*</strong></li>
+                <li><strong>title*</strong></li>
+                <li><strong>class*</strong></li>
+                <li><strong>due_date*</strong></li>
+            </ul>
+        </div>
+        <div style="padding: 20px; background: #f8fafc; border-radius: 10px;">
+            <h4 style="color: #8b5cf6; margin-bottom: 15px;">Grades</h4>
+            <ul style="list-style: none; padding: 0; color: #64748b; line-height: 2;">
+                <li><strong>student_id*</strong></li>
+                <li><strong>subject*</strong></li>
+                <li><strong>test_type*</strong></li>
+                <li><strong>score*</strong></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function handleDragOver(e) {
+        e.preventDefault();
+        document.getElementById('uploadZone').style.borderColor = '#3b82f6';
+        document.getElementById('uploadZone').style.background = '#dbeafe';
+    }
+
+    function handleDragLeave(e) {
+        document.getElementById('uploadZone').style.borderColor = '#cbd5e1';
+        document.getElementById('uploadZone').style.background = '#f8fafc';
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        handleDragLeave(e);
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            processFile(file);
+        }
+    }
+
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (file) {
+            processFile(file);
+        }
+    }
+
+    async function processFile(file) {
+        const dataType = document.getElementById('dataType').value;
+        
+        document.getElementById('feedbackChat').style.display = 'block';
+        addFeedbackMessage('info', `Processing file: ${file.name}...`);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('data_type', dataType);
+        
+        try {
+            const response = await fetch('/api/admin/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                addFeedbackMessage('success', data.message);
+                if (data.records) {
+                    addFeedbackMessage('success', `Successfully imported ${data.records} records`);
+                }
+                if (data.errors && data.errors.length > 0) {
+                    data.errors.forEach(error => {
+                        addFeedbackMessage('error', error);
+                    });
+                }
+            } else {
+                addFeedbackMessage('error', data.message || 'Upload failed');
+            }
+        } catch (error) {
+            addFeedbackMessage('error', 'An error occurred during upload');
+        }
+    }
+
+    function addFeedbackMessage(type, message) {
+        const colors = {
+            success: { bg: '#dcfce7', color: '#166534', icon: 'check-circle' },
+            error: { bg: '#fee2e2', color: '#991b1b', icon: 'times-circle' },
+            info: { bg: '#dbeafe', color: '#1e40af', icon: 'info-circle' }
+        };
+        
+        const style = colors[type] || colors.info;
+        
+        const div = document.createElement('div');
+        div.style.cssText = `background: ${style.bg}; color: ${style.color}; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: start; gap: 10px;`;
+        div.innerHTML = `
+            <i class="fas fa-${style.icon}" style="margin-top: 2px;"></i>
+            <div style="flex: 1;">${message}</div>
+        `;
+        
+        document.getElementById('feedbackMessages').appendChild(div);
+        document.getElementById('feedbackMessages').scrollTop = document.getElementById('feedbackMessages').scrollHeight;
+    }
+</script>
+{% endblock %}

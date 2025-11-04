@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title" id="scheduleTitle">
+    <i class="fas fa-calendar-day"></i>
+    Today's Schedule
+</div>
+
+<div class="card">
+    <div id="scheduleGrid" style="display: grid; gap: 15px;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadScheduleView() {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = days[new Date().getDay()];
+        
+        document.getElementById('scheduleTitle').innerHTML = `
+            <i class="fas fa-calendar-day"></i>
+            Today's Schedule - ${today}
+        `;
+        
+        try {
+            const response = await fetch('/api/schedule');
+            const schedule = await response.json();
+            
+            const todaySchedule = schedule[today] || [];
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+            
+            let html = '';
+            const times = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM'];
+            
+            for (let i = 0; i < 8; i++) {
+                const subject = todaySchedule[i] || 'Free Period';
+                const color = todaySchedule[i] ? colors[i % colors.length] : '#94a3b8';
+                
+                html += `
+                    <div style="padding: 20px; background: white; border-left: 4px solid ${color}; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Period ${i + 1}</div>
+                                <div style="font-size: 18px; font-weight: 600; color: #1e293b;">${subject}</div>
+                            </div>
+                            <div style="font-size: 14px; color: #64748b;">${times[i]}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('scheduleGrid').innerHTML = html;
+        } catch (error) {
+            console.error('Error loading schedule:', error);
+        }
+    }
+
+    loadScheduleView();
+</script>
+{% endblock %}

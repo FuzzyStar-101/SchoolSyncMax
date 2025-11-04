@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title">
+    <i class="fas fa-user-circle"></i>
+    Account Information
+</div>
+
+<div class="card">
+    <div id="accountInfo"></div>
+    
+    <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #e2e8f0;">
+        <p style="color: #64748b; margin-bottom: 20px;">
+            <i class="fas fa-info-circle"></i> To edit your profile, change your password, or update your display picture, click on your avatar in the top right corner.
+        </p>
+        <button class="btn btn-primary" onclick="openProfileModal()">
+            <i class="fas fa-user-edit"></i> Open Profile Settings
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadAccountView() {
+        try {
+            const response = await fetch('/api/account');
+            const data = await response.json();
+            
+            let html = `
+                <div style="display: grid; gap: 15px;">
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">Name:</span>
+                        <span style="color: #475569;">${data.name}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">User ID:</span>
+                        <span style="color: #475569;">${data.user_id}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">Username:</span>
+                        <span style="color: #475569;">${data.username}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">Role:</span>
+                        <span style="color: #475569;">${data.role.charAt(0).toUpperCase() + data.role.slice(1)}</span>
+                    </div>
+            `;
+            
+            if (data.class) {
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">Class:</span>
+                        <span style="color: #475569;">${data.class}</span>
+                    </div>
+                `;
+            }
+            
+            if (data.subjects) {
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #1e293b;">Subjects:</span>
+                        <span style="color: #475569;">${data.subjects}</span>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            document.getElementById('accountInfo').innerHTML = html;
+        } catch (error) {
+            console.error('Error loading account:', error);
+        }
+    }
+
+    loadAccountView();
+</script>
+{% endblock %}

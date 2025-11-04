@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div class="section-title" style="margin-bottom: 0;">
+        <i class="fas fa-users"></i>
+        Accounts Management
+    </div>
+    <button class="btn btn-primary" onclick="showAddAccountForm()">
+        <i class="fas fa-user-plus"></i> Add Account
+    </button>
+</div>
+
+<div id="addAccountForm" class="card" style="display: none; margin-bottom: 20px;">
+    <h3 style="margin-bottom: 20px;">Add New Account</h3>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="accName" placeholder="Enter full name">
+        </div>
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="accUsername" placeholder="Enter username">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="accPassword" placeholder="Minimum 8 characters">
+        </div>
+        <div class="form-group">
+            <label>Role</label>
+            <select id="accRole" onchange="toggleRoleFields()">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group" id="classField">
+            <label>Class</label>
+            <input type="text" id="accClass" placeholder="Enter class">
+        </div>
+        <div class="form-group" id="subjectsField" style="display: none;">
+            <label>Subjects</label>
+            <input type="text" id="accSubjects" placeholder="Comma-separated subjects">
+        </div>
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-success" onclick="addAccount()">
+            <i class="fas fa-save"></i> Save
+        </button>
+        <button class="btn btn-secondary" onclick="showAddAccountForm()">
+            <i class="fas fa-times"></i> Cancel
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn btn-primary" id="btnStudents" onclick="showAccountType('students')">Students</button>
+        <button class="btn btn-secondary" id="btnTeachers" onclick="showAccountType('teachers')">Teachers</button>
+        <button class="btn btn-secondary" id="btnAdmins" onclick="showAccountType('admins')">Admins</button>
+    </div>
+    
+    <div id="studentsTable">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Class</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="studentsList"></tbody>
+        </table>
+    </div>
+    
+    <div id="teachersTable" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Subjects</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="teachersList"></tbody>
+        </table>
+    </div>
+    
+    <div id="adminsTable" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="adminsList"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allAccounts = [];
+
+    async function loadAccountsView() {
+        try {
+            const response = await fetch('/api/admin/accounts');
+            allAccounts = await response.json();
+            showAccountType('students');
+        } catch (error) {
+            console.error('Error loading accounts:', error);
+        }
+    }
+
+    function showAccountType(type) {
+        document.getElementById('studentsTable').style.display = 'none';
+        document.getElementById('teachersTable').style.display = 'none';
+        document.getElementById('adminsTable').style.display = 'none';
+        
+        document.getElementById('btnStudents').className = 'btn btn-secondary';
+        document.getElementById('btnTeachers').className = 'btn btn-secondary';
+        document.getElementById('btnAdmins').className = 'btn btn-secondary';
+        
+        if (type === 'students') {
+            document.getElementById('studentsTable').style.display = 'block';
+            document.getElementById('btnStudents').className = 'btn btn-primary';
+            renderStudents();
+        } else if (type === 'teachers') {
+            document.getElementById('teachersTable').style.display = 'block';
+            document.getElementById('btnTeachers').className = 'btn btn-primary';
+            renderTeachers();
+        } else if (type === 'admins') {
+            document.getElementById('adminsTable').style.display = 'block';
+            document.getElementById('btnAdmins').className = 'btn btn-primary';
+            renderAdmins();
+        }
+    }
+
+    function renderStudents() {
+        const students = allAccounts.filter(a => a.role === 'student');
+        let html = '';
+        students.forEach(s => {
+            html += `
+                <tr>
+                    <td>${s.user_id}</td>
+                    <td>${s.name}</td>
+                    <td>${s.username}</td>
+                    <td>${s.class}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 5px 10px;" onclick="resetUserPassword('${s.user_id}')">
+                            <i class="fas fa-key"></i>
+                        </button>
+                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteAccount('${s.user_id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById('studentsList').innerHTML = html || '<tr><td colspan="5" style="text-align: center;">No students</td></tr>';
+    }
+
+    function renderTeachers() {
+        const teachers = allAccounts.filter(a => a.role === 'teacher');
+        let html = '';
+        teachers.forEach(t => {
+            html += `
+                <tr>
+                    <td>${t.user_id}</td>
+                    <td>${t.name}</td>
+                    <td>${t.username}</td>
+                    <td>${t.subjects}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 5px 10px;" onclick="resetUserPassword('${t.user_id}')">
+                            <i class="fas fa-key"></i>
+                        </button>
+                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteAccount('${t.user_id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById('teachersList').innerHTML = html || '<tr><td colspan="5" style="text-align: center;">No teachers</td></tr>';
+    }
+
+    function renderAdmins() {
+        const admins = allAccounts.filter(a => a.role === 'admin' || a.role === 'superadmin');
+        let html = '';
+        admins.forEach(a => {
+            html += `
+                <tr>
+                    <td>${a.user_id}</td>
+                    <td>${a.name}</td>
+                    <td>${a.username}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 5px 10px;" onclick="resetUserPassword('${a.user_id}')">
+                            <i class="fas fa-key"></i>
+                        </button>
+                        ${a.user_id !== 'SA001' ? `<button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteAccount('${a.user_id}')"><i class="fas fa-trash"></i></button>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById('adminsList').innerHTML = html || '<tr><td colspan="4" style="text-align: center;">No admins</td></tr>';
+    }
+
+    function showAddAccountForm() {
+        const form = document.getElementById('addAccountForm');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        if (form.style.display === 'none') {
+            clearAddForm();
+        }
+    }
+
+    function toggleRoleFields() {
+        const role = document.getElementById('accRole').value;
+        document.getElementById('classField').style.display = role === 'student' ? 'block' : 'none';
+        document.getElementById('subjectsField').style.display = role === 'teacher' ? 'block' : 'none';
+    }
+
+    function clearAddForm() {
+        document.getElementById('accName').value = '';
+        document.getElementById('accUsername').value = '';
+        document.getElementById('accPassword').value = '';
+        document.getElementById('accRole').value = 'student';
+        document.getElementById('accClass').value = '';
+        document.getElementById('accSubjects').value = '';
+        toggleRoleFields();
+    }
+
+    async function addAccount() {
+        const name = document.getElementById('accName').value;
+        const username = document.getElementById('accUsername').value;
+        const password = document.getElementById('accPassword').value;
+        const role = document.getElementById('accRole').value;
+        const className = document.getElementById('accClass').value;
+        const subjects = document.getElementById('accSubjects').value;
+        
+        if (!name || !username || !password) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        if (password.length < 8) {
+            alert('Password must be at least 8 characters');
+            return;
+        }
+        
+        try {
+            const response = await fetchWithCSRF('/api/admin/accounts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name,
+                    username,
+                    password,
+                    role,
+                    class: className,
+                    subjects
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Account created successfully!');
+                showAddAccountForm();
+                loadAccountsView();
+            } else {
+                alert('Failed to create account');
+            }
+        } catch (error) {
+            alert('An error occurred');
+        }
+    }
+
+    async function resetUserPassword(userId) {
+        const newPassword = prompt('Enter new password (minimum 8 characters):');
+        if (!newPassword) return;
+        
+        if (newPassword.length < 8) {
+            alert('Password must be at least 8 characters');
+            return;
+        }
+        
+        try {
+            const response = await fetchWithCSRF('/api/admin/reset-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    new_password: newPassword
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Password reset successfully!');
+            } else {
+                alert('Failed to reset password');
+            }
+        } catch (error) {
+            alert('An error occurred');
+        }
+    }
+
+    async function deleteAccount(userId) {
+        if (!confirm('Are you sure you want to delete this account?')) return;
+        
+        try {
+            const response = await fetchWithCSRF(`/api/admin/accounts?id=${userId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadAccountsView();
+            } else {
+                alert('Failed to delete account');
+            }
+        } catch (error) {
+            alert('An error occurred');
+        }
+    }
+
+    loadAccountsView();
+</script>
+{% endblock %}

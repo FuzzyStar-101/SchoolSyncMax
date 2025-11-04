@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title">
+    <i class="fas fa-table"></i>
+    Timetable Editor
+</div>
+
+<!-- Management Section -->
+<div class="grid grid-3" style="margin-bottom: 30px;">
+    <!-- Subjects -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Subjects</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="newSubject" placeholder="Subject name" style="flex: 1; padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <button class="btn btn-primary" onclick="addSubject()" style="padding: 8px 15px;">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+        <div id="subjectsList" style="max-height: 200px; overflow-y: auto;"></div>
+    </div>
+    
+    <!-- Classes -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Classes</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="newClass" placeholder="Class name" style="flex: 1; padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <button class="btn btn-primary" onclick="addClass()" style="padding: 8px 15px;">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+        <div id="classesList" style="max-height: 200px; overflow-y: auto;"></div>
+    </div>
+    
+    <!-- Teacher Assignment -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Assign Teachers</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <select id="teacherSelect" style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                <option value="">Select Teacher</option>
+            </select>
+            <select id="subjectSelect" style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                <option value="">Select Subject</option>
+            </select>
+            <button class="btn btn-success" onclick="assignTeacherToSubject()" style="width: 100%;">
+                Assign
+            </button>
+            <button class="btn btn-secondary" onclick="viewTeacherAssignments()" style="width: 100%;">
+                View All Assignments
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Timetable Editor Section -->
+<div class="grid grid-3" style="margin-bottom: 30px;">
+    <!-- Draggable Subjects -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Drag Subjects</h3>
+        <div id="draggableSubjects" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;"></div>
+    </div>
+    
+    <!-- Class Selector -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Select Class</h3>
+        <select id="classSelector" onchange="loadScheduleForClass()" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <option value="">Select a class</option>
+        </select>
+    </div>
+    
+    <!-- Actions -->
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-bottom: 15px;">Actions</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-success" onclick="saveSchedule()" style="width: 100%;">
+                <i class="fas fa-save"></i> Save Schedule
+            </button>
+            <button class="btn btn-secondary" onclick="clearSchedule()" style="width: 100%;">
+                <i class="fas fa-eraser"></i> Clear Schedule
+            </button>
+            <button class="btn btn-primary" onclick="exportPDF()" style="width: 100%;">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Timetable Grid -->
+<div class="card">
+    <p style="margin-bottom: 20px; color: #64748b; font-style: italic;">
+        <i class="fas fa-info-circle"></i> Drag subjects to time slots. Double-click a cell to clear it.
+    </p>
+    <div style="overflow-x: auto;">
+        <table id="timetableGrid" style="min-width: 800px;">
+            <thead>
+                <tr>
+                    <th style="min-width: 80px;">Period</th>
+                    <th style="min-width: 100px;">Monday</th>
+                    <th style="min-width: 100px;">Tuesday</th>
+                    <th style="min-width: 100px;">Wednesday</th>
+                    <th style="min-width: 100px;">Thursday</th>
+                    <th style="min-width: 100px;">Friday</th>
+                    <th style="min-width: 100px;">Saturday</th>
+                </tr>
+            </thead>
+            <tbody id="timetableBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let subjects = [];
+    let classes = [];
+    let teachers = [];
+    let draggedSubject = null;
+    let currentSchedule = {};
+
+    async function loadScheduleGeneratorView() {
+        try {
+            const [subjectsRes, classesRes, teachersRes] = await Promise.all([
+                fetch('/api/admin/subjects'),
+                fetch('/api/admin/classes-list'),
+                fetch('/api/admin/teachers-list')
+            ]);
+            
+            subjects = await subjectsRes.json();
+            classes = await classesRes.json();
+            teachers = await teachersRes.json();
+            
+            renderSubjects();
+            renderClasses();
+            renderTeachers();
+            renderTimetableGrid();
+        } catch (error) {
+            console.error('Error loading data:', error);
+        }
+    }
+
+    function renderSubjects() {
+        let html = '';
+        subjects.forEach(s => {
+            html += `
+                <div style="padding: 10px; background: #f8fafc; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <span>${s.name}</span>
+                    <button onclick="deleteSubject('${s.name}')" style="background: transparent; border: none; color: #ef4444; cursor: pointer;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+        document.getElementById('subjectsList').innerHTML = html;
+        
+        // Draggable subjects
+        html = '';
+        subjects.forEach(s => {
+            html += `
+                <div draggable="true" ondragstart="dragStart(event, '${s.name}')" 
+                     style="padding: 10px; background: #3b82f6; color: white; border-radius: 8px; text-align: center; cursor: move; user-select: none;">
+                    ${s.name}
+                </div>
+            `;
+        });
+        document.getElementById('draggableSubjects').innerHTML = html;
+        
+        // Subject selector
+        let options = '<option value="">Select Subject</option>';
+        subjects.forEach(s => {
+            options += `<option value="${s.name}">${s.name}</option>`;
+        });
+        document.getElementById('subjectSelect').innerHTML = options;
+    }
+
+    function renderClasses() {
+        let html = '';
+        classes.forEach(c => {
+            html += `
+                <div style="padding: 10px; background: #f8fafc; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <span>${c.name}</span>
+                    <button onclick="deleteClass('${c.name}')" style="background: transparent; border: none; color: #ef4444; cursor: pointer;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+        document.getElementById('classesList').innerHTML = html;
+        
+        // Class selector
+        let options = '<option value="">Select a class</option>';
+        classes.forEach(c => {
+            options += `<option value="${c.name}">${c.name}</option>`;
+        });
+        document.getElementById('classSelector').innerHTML = options;
+    }
+
+    function renderTeachers() {
+        let options = '<option value="">Select Teacher</option>';
+        teachers.forEach(t => {
+            options += `<option value="${t.id}">${t.name}</option>`;
+        });
+        document.getElementById('teacherSelect').innerHTML = options;
+    }
+
+    function renderTimetableGrid() {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        let html = '';
+        
+        for (let period = 1; period <= 8; period++) {
+            html += '<tr>';
+            html += `<td style="font-weight: 600;">Period ${period}</td>`;
+            
+            days.forEach(day => {
+                html += `
+                    <td ondrop="dropWithConflictCheck(event, '${day}', ${period})" 
+                        ondragover="allowDrop(event)"
+                        ondblclick="clearCell('${day}', ${period})"
+                        id="cell-${day}-${period}"
+                        style="height: 60px; text-align: center; cursor: pointer; transition: background 0.2s;"
+                        onmouseover="this.style.background='#dbeafe'" 
+                        onmouseout="this.style.background='white'">
+                    </td>
+                `;
+            });
+            
+            html += '</tr>';
+        }
+        
+        document.getElementById('timetableBody').innerHTML = html;
+    }
+
+    async function addSubject() {
+        const name = document.getElementById('newSubject').value.trim();
+        if (!name) return;
+        
+        try {
+            const response = await fetchWithCSRF('/api/admin/subjects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, code: '' })
+            });
+            
+            if (response.ok) {
+                document.getElementById('newSubject').value = '';
+                loadScheduleGeneratorView();
+            }
+        } catch (error) {
+            alert('Error adding subject');
+        }
+    }
+
+    async function deleteSubject(name) {
+        if (!confirm(`Delete subject "${name}"?`)) return;
+        
+        try {
+            await fetchWithCSRF(`/api/admin/subjects?name=${name}`, { method: 'DELETE' });
+            loadScheduleGeneratorView();
+        } catch (error) {
+            alert('Error deleting subject');
+        }
+    }
+
+    async function addClass() {
+        const name = document.getElementById('newClass').value.trim();
+        if (!name) return;
+        
+        try {
+            const response = await fetchWithCSRF('/api/admin/classes-list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, section: '' })
+            });
+            
+            if (response.ok) {
+                document.getElementById('newClass').value = '';
+                loadScheduleGeneratorView();
+            }
+        } catch (error) {
+            alert('Error adding class');
+        }
+    }
+
+    async function deleteClass(name) {
+        if (!confirm(`Delete class "${name}"?`)) return;
+        
+        try {
+            await fetchWithCSRF(`/api/admin/classes-list?name=${name}`, { method: 'DELETE' });
+            loadScheduleGeneratorView();
+        } catch (error) {
+            alert('Error deleting class');
+        }
+    }
+
+    async function assignTeacherToSubject() {
+        const teacherId = document.getElementById('teacherSelect').value;
+        const subject = document.getElementById('subjectSelect').value;
+        
+        if (!teacherId || !subject) {
+            alert('Please select both teacher and subject');
+            return;
+        }
+        
+        try {
+            await fetchWithCSRF('/api/admin/teacher-subjects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ teacher_id: teacherId, subject })
+            });
+            
+            alert('Teacher assigned successfully!');
+        } catch (error) {
+            alert('Error assigning teacher');
+        }
+    }
+
+    async function viewTeacherAssignments() {
+        try {
+            const response = await fetch('/api/admin/teacher-subjects');
+            const assignments = await response.json();
+            
+            let html = '<h3 style="margin-bottom: 20px;">Teacher-Subject Assignments</h3>';
+            html += '<table><thead><tr><th>Teacher</th><th>Subject</th><th>Actions</th></tr></thead><tbody>';
+            
+            assignments.forEach(a => {
+                html += `
+                    <tr>
+                        <td>${a.teacher_name}</td>
+                        <td>${a.subject}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteAssignment(${a.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            const contentArea = document.querySelector('.content');
+            const tempDiv = document.createElement('div');
+            tempDiv.className = 'card';
+            tempDiv.innerHTML = html;
+            tempDiv.style.marginTop = '20px';
+            contentArea.appendChild(tempDiv);
+            
+            tempDiv.scrollIntoView({ behavior: 'smooth' });
+        } catch (error) {
+            alert('Error loading assignments');
+        }
+    }
+
+    async function deleteAssignment(id) {
+        if (!confirm('Remove this assignment?')) return;
+        
+        try {
+            await fetchWithCSRF(`/api/admin/teacher-subjects?id=${id}`, { method: 'DELETE' });
+            viewTeacherAssignments();
+        } catch (error) {
+            alert('Error deleting assignment');
+        }
+    }
+
+    function dragStart(event, subject) {
+        draggedSubject = subject;
+        event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function allowDrop(event) {
+        event.preventDefault();
+    }
+
+    async function dropWithConflictCheck(event, day, period) {
+        event.preventDefault();
+        
+        if (!draggedSubject) return;
+        
+        const className = document.getElementById('classSelector').value;
+        if (!className) {
+            alert('Please select a class first');
+            return;
+        }
+        
+        // Check for conflicts
+        try {
+            const response = await fetchWithCSRF('/api/admin/check-conflicts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    class: className,
+                    day: day,
+                    period: period,
+                    subject: draggedSubject
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.conflict) {
+                const detail = data.details[0];
+                let message = `Conflict detected!\n\nTeacher ${detail.teacher} is already teaching ${detail.class} at this time.`;
+                
+                if (data.alternatives && data.alternatives.length > 0) {
+                    message += `\n\nAlternative periods: ${data.alternatives.join(', ')}`;
+                }
+                
+                message += '\n\nDo you want to assign anyway?';
+                
+                if (!confirm(message)) {
+                    return;
+                }
+            }
+            
+            // Place subject in cell
+            const cell = document.getElementById(`cell-${day}-${period}`);
+            cell.textContent = draggedSubject;
+            cell.style.background = '#3b82f6';
+            cell.style.color = 'white';
+            cell.style.fontWeight = '600';
+            
+        } catch (error) {
+            alert('Error checking conflicts');
+        }
+    }
+
+    function clearCell(day, period) {
+        const cell = document.getElementById(`cell-${day}-${period}`);
+        cell.textContent = '';
+        cell.style.background = 'white';
+        cell.style.color = 'inherit';
+        cell.style.fontWeight = 'normal';
+    }
+
+    function clearSchedule() {
+        if (!confirm('Clear entire schedule?')) return;
+        
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        for (let period = 1; period <= 8; period++) {
+            days.forEach(day => {
+                clearCell(day, period);
+            });
+        }
+    }
+
+    async function saveSchedule() {
+        const className = document.getElementById('classSelector').value;
+        if (!className) {
+            alert('Please select a class');
+            return;
+        }
+        
+        const schedule = {
+            Monday: [], Tuesday: [], Wednesday: [], 
+            Thursday: [], Friday: [], Saturday: []
+        };
+        
+        const days = Object.keys(schedule);
+        days.forEach(day => {
+            for (let period = 1; period <= 8; period++) {
+                const cell = document.getElementById(`cell-${day}-${period}`);
+                schedule[day].push(cell.textContent || '');
+            }
+        });
+        
+        try {
+            const response = await fetchWithCSRF('/api/admin/schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ class: className, schedule })
+            });
+            
+            if (response.ok) {
+                alert('Schedule saved successfully!');
+            }
+        } catch (error) {
+            alert('Error saving schedule');
+        }
+    }
+
+    async function loadScheduleForClass() {
+        const className = document.getElementById('classSelector').value;
+        if (!className) return;
+        
+        // Clear current schedule
+        clearSchedule();
+        
+        try {
+            const response = await fetch(`/api/admin/schedule?class=${className}`);
+            const schedule = await response.json();
+            
+            Object.keys(schedule).forEach(day => {
+                schedule[day].forEach((subject, index) => {
+                    if (subject) {
+                        const period = index + 1;
+                        const cell = document.getElementById(`cell-${day}-${period}`);
+                        cell.textContent = subject;
+                        cell.style.background = '#3b82f6';
+                        cell.style.color = 'white';
+                        cell.style.fontWeight = '600';
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error loading schedule:', error);
+        }
+    }
+
+    function exportPDF() {
+        alert('PDF export feature would integrate with a library like jsPDF. For now, use browser print (Ctrl+P) to save as PDF.');
+        window.print();
+    }
+
+    loadScheduleGeneratorView();
+</script>
+{% endblock %}

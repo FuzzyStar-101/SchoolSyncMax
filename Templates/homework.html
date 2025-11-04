@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div class="section-title" style="margin-bottom: 0;">
+        <i class="fas fa-book"></i>
+        Homework
+    </div>
+    {% if user.role in ['teacher', 'admin', 'superadmin'] %}
+    <button class="btn btn-primary" onclick="showAddHomeworkForm()">
+        <i class="fas fa-plus"></i> Add Homework
+    </button>
+    {% endif %}
+</div>
+
+{% if user.role in ['teacher', 'admin', 'superadmin'] %}
+<div id="addForm" class="card" style="display: none; margin-bottom: 20px;">
+    <h3 style="margin-bottom: 20px;">Add New Homework</h3>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Subject</label>
+            <input type="text" id="hwSubject" placeholder="Enter subject">
+        </div>
+        <div class="form-group">
+            <label>Class</label>
+            <input type="text" id="hwClass" placeholder="Enter class">
+        </div>
+        <div class="form-group full-width">
+            <label>Title</label>
+            <input type="text" id="hwTitle" placeholder="Enter homework title">
+        </div>
+        <div class="form-group">
+            <label>Date Given</label>
+            <input type="date" id="hwDateGiven">
+        </div>
+        <div class="form-group">
+            <label>Due Date</label>
+            <input type="date" id="hwDueDate">
+        </div>
+        <div class="form-group full-width">
+            <label>Description</label>
+            <textarea id="hwDescription" placeholder="Enter homework description"></textarea>
+        </div>
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-success" onclick="addHomework()">
+            <i class="fas fa-save"></i> Save
+        </button>
+        <button class="btn btn-secondary" onclick="showAddHomeworkForm()">
+            <i class="fas fa-times"></i> Cancel
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <table id="homeworkTable">
+        <thead>
+            <tr>
+                <th>HW ID</th>
+                <th>Subject</th>
+                <th>Title</th>
+                <th>Date Given</th>
+                <th>Due Date</th>
+                {% if user.role in ['teacher', 'admin', 'superadmin'] %}
+                <th>Class</th>
+                <th>Actions</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody id="homeworkList"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadHomeworkView() {
+        try {
+            const response = await fetch('/api/homework');
+            const homework = await response.json();
+            
+            let html = '';
+            homework.forEach(hw => {
+                html += `
+                    <tr>
+                        <td>${hw.id}</td>
+                        <td>${hw.subject}</td>
+                        <td>${hw.title}</td>
+                        <td>${hw.date_given}</td>
+                        <td>${hw.due_date}</td>
+                        {% if user.role in ['teacher', 'admin', 'superadmin'] %}
+                        <td>${hw.class}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteHomework('${hw.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('homeworkList').innerHTML = html || '<tr><td colspan="7" style="text-align: center;">No homework assigned</td></tr>';
+        } catch (error) {
+            console.error('Error loading homework:', error);
+        }
+    }
+
+    function showAddHomeworkForm() {
+        const form = document.getElementById('addForm');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            document.getElementById('hwDateGiven').value = new Date().toISOString().split('T')[0];
+        } else {
+            form.style.display = 'none';
+            clearForm();
+        }
+    }
+
+    function clearForm() {
+        document.getElementById('hwSubject').value = '';
+        document.getElementById('hwClass').value = '';
+        document.getElementById('hwTitle').value = '';
+        document.getElementById('hwDateGiven').value = '';
+        document.getElementById('hwDueDate').value = '';
+        document.getElementById('hwDescription').value = '';
+    }
+
+    async function addHomework() {
+        const subject = document.getElementById('hwSubject').value;
+        const className = document.getElementById('hwClass').value;
+        const title = document.getElementById('hwTitle').value;
+        const dateGiven = document.getElementById('hwDateGiven').value;
+        const dueDate = document.getElementById('hwDueDate').value;
+        const description = document.getElementById('hwDescription').value;
+        
+        if (!subject || !className || !title || !dateGiven || !dueDate) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        try {
+            const response = await fetchWithCSRF('/api/homework', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    subject,
+                    class: className,
+                    title,
+                    date_given: dateGiven,
+                    due_date: dueDate,
+                    description
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Homework added successfully!');
+                showAddHomeworkForm();
+                loadHomeworkView();
+            } else {
+                alert('Failed to add homework');
+            }
+        } catch (error) {
+            alert('An error occurred');
+        }
+    }
+
+    async function deleteHomework(id) {
+        if (!confirm('Are you sure you want to delete this homework?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetchWithCSRF(`/api/homework?id=${id}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadHomeworkView();
+            } else {
+                alert('Failed to delete homework');
+            }
+        } catch (error) {
+            alert('An error occurred');
+        }
+    }
+
+    loadHomeworkView();
+</script>
+{% endblock %}

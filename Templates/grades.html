@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title">
+    <i class="fas fa-chart-line"></i>
+    Grades
+</div>
+
+<div class="card">
+    <table id="gradesTable">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>PT1</th>
+                <th>PT2</th>
+                <th>PT3</th>
+                <th>PF</th>
+                <th>Final</th>
+            </tr>
+        </thead>
+        <tbody id="gradesList"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadGradesView() {
+        try {
+            const response = await fetch('/api/grades');
+            const grades = await response.json();
+            
+            const subjects = Object.keys(grades);
+            
+            if (subjects.length === 0) {
+                document.getElementById('gradesList').innerHTML = '<tr><td colspan="6" style="text-align: center;">No grades available</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            subjects.forEach(subject => {
+                const subjectGrades = grades[subject];
+                html += `
+                    <tr>
+                        <td style="font-weight: 600;">${subject}</td>
+                        <td>${subjectGrades.PT1 || '-'}</td>
+                        <td>${subjectGrades.PT2 || '-'}</td>
+                        <td>${subjectGrades.PT3 || '-'}</td>
+                        <td>${subjectGrades.PF || '-'}</td>
+                        <td style="font-weight: 600; color: #3b82f6;">${subjectGrades.F || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('gradesList').innerHTML = html;
+        } catch (error) {
+            console.error('Error loading grades:', error);
+        }
+    }
+
+    loadGradesView();
+</script>
+{% endblock %}

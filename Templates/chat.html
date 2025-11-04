@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; height: calc(100vh - 200px); background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+    <!-- Left Sidebar -->
+    <div style="width: 300px; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column;">
+        <div style="padding: 20px; border-bottom: 1px solid #e2e8f0;">
+            <button class="btn btn-primary" onclick="openNewChatModal()" style="width: 100%;">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+        </div>
+        <div id="chatList" style="flex: 1; overflow-y: auto;"></div>
+    </div>
+    
+    <!-- Right Main Area -->
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <div id="chatHeader" style="padding: 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+            <h3 style="margin: 0; color: #1e293b;">Select a chat</h3>
+        </div>
+        
+        <div id="messagesArea" style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;"></div>
+        
+        <div id="typingIndicator" style="padding: 10px 20px; background: #f8fafc; display: none; color: #64748b; font-size: 14px; font-style: italic;"></div>
+        
+        <div id="inputArea" style="padding: 20px; border-top: 1px solid #e2e8f0; display: none;">
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="messageInput" placeholder="Type a message..." 
+                       style="flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 25px; font-size: 14px;"
+                       onkeypress="if(event.key==='Enter') sendMessage()"
+                       oninput="handleTyping()">
+                <button onclick="sendMessage()" style="background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 25px; cursor: pointer;">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div id="newChatModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>New Chat</h3>
+            <button class="close-modal" onclick="closeNewChatModal()">×</button>
+        </div>
+        <div>
+            <div class="form-group">
+                <label>Search Users</label>
+                <input type="text" id="userSearch" placeholder="Type at least 2 characters..." oninput="searchUsers()">
+            </div>
+            <div id="searchResults" style="max-height: 300px; overflow-y: auto; margin: 20px 0;"></div>
+            <div id="groupNameSection" style="display: none;">
+                <div class="form-group">
+                    <label>Group Name</label>
+                    <input type="text" id="groupName" placeholder="Enter group name">
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="createChat()">
+                <i class="fas fa-check"></i> Create
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentRoomId = null;
+    let currentRoomName = '';
+    let selectedUsers = [];
+    let typingTimeout = null;
+
+    async function loadChatView() {
+        try {
+            const response = await fetch('/api/chat/rooms');
+            const rooms = await response.json();
+            
+            let html = '';
+            rooms.forEach(room => {
+                const badgeClass = room.room_type === 'group' ? 'badge-group' : 'badge-direct';
+                html += `
+                    <div onclick="selectChatRoom('${room.room_id}', '${room.room_name}')" 
+                         style="padding: 15px; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;"
+                         onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                        <div style="font-weight: 600; color: #1e293b; margin-bottom: 5px;">${room.room_name}</div>
+                        <div style="font-size: 12px; color: #64748b; display: flex; justify-content: space-between;">
+                            <span>${room.last_message || 'No messages yet'}</span>
+                            <span class="badge ${badgeClass}">${room.room_type}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('chatList').innerHTML = html || '<p style="padding: 20px; text-align: center; color: #64748b;">No chats</p>';
+        } catch (error) {
+            console.error('Error loading chats:', error);
+        }
+    }
+
+    function openNewChatModal() {
+        document.getElementById('newChatModal').classList.add('show');
+        selectedUsers = [];
+        document.getElementById('userSearch').value = '';
+        document.getElementById('searchResults').innerHTML = '';
+        document.getElementById('groupNameSection').style.display = 'none';
+    }
+
+    function closeNewChatModal() {
+        document.getElementById('newChatModal').classList.remove('show');
+    }
+
+    async function searchUsers() {
+        const query = document.getElementById('userSearch').value;
+        if (query.length < 2) {
+            document.getElementById('searchResults').innerHTML = '';
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/chat/users?q=${query}`);
+            const users = await response.json();
+            
+            let html = '';
+            users.forEach(user => {
+                const isSelected = selectedUsers.includes(user.user_id);
+                const bgColor = isSelected ? '#dbeafe' : 'white';
+                
+                html += `
+                    <div onclick="toggleUserSelection('${user.user_id}')" 
+                         id="user-${user.user_id}"
+                         style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; cursor: pointer; background: ${bgColor};">
+                        <div style="font-weight: 600;">${user.name}</div>
+                        <div style="font-size: 12px; color: #64748b;">${user.username} · <span class="badge badge-${user.role}">${user.role}</span></div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('searchResults').innerHTML = html;
+        } catch (error) {
+            console.error('Error searching users:', error);
+        }
+    }
+
+    function toggleUserSelection(userId) {
+        const index = selectedUsers.indexOf(userId);
+        if (index > -1) {
+            selectedUsers.splice(index, 1);
+            document.getElementById(`user-${userId}`).style.background = 'white';
+        } else {
+            selectedUsers.push(userId);
+            document.getElementById(`user-${userId}`).style.background = '#dbeafe';
+        }
+        
+        document.getElementById('groupNameSection').style.display = selectedUsers.length >= 2 ? 'block' : 'none';
+    }
+
+    async function createChat() {
+        if (selectedUsers.length === 0) {
+            alert('Please select at least one user');
+            return;
+        }
+        
+        const roomType = selectedUsers.length === 1 ? 'direct' : 'group';
+        const members = ['{{ user.user_id }}', ...selectedUsers];
+        let roomName = '';
+        
+        if (roomType === 'group') {
+            roomName = document.getElementById('groupName').value;
+            if (!roomName) {
+                alert('Please enter a group name');
+                return;
+            }
+        }
+        
+        try {
+            const response = await fetchWithCSRF('/api/chat/rooms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ room_type: roomType, members, room_name: roomName })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                closeNewChatModal();
+                loadChatView();
+            }
+        } catch (error) {
+            alert('Error creating chat');
+        }
+    }
+
+    async function selectChatRoom(roomId, roomName) {
+        currentRoomId = roomId;
+        currentRoomName = roomName;
+        
+        document.getElementById('chatHeader').innerHTML = `<h3 style="margin: 0;">${roomName}</h3>`;
+        document.getElementById('inputArea').style.display = 'block';
+        
+        // Join room via Socket.IO
+        socket.emit('join_room', { room_id: roomId });
+        
+        // Load messages
+        try {
+            const response = await fetch(`/api/chat/messages/${roomId}`);
+            const messages = await response.json();
+            renderMessages(messages);
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    function renderMessages(messages) {
+        let html = '';
+        messages.forEach(msg => {
+            const isOwn = msg.sender_id === '{{ user.user_id }}';
+            const align = isOwn ? 'flex-end' : 'flex-start';
+            const bg = isOwn ? '#3b82f6' : '#e2e8f0';
+            const color = isOwn ? 'white' : '#1e293b';
+            
+            html += `
+                <div style="display: flex; justify-content: ${align}; margin-bottom: 15px;">
+                    <div style="max-width: 60%; background: ${bg}; color: ${color}; padding: 12px; border-radius: 12px;">
+                        ${!isOwn ? `<div style="font-size: 12px; font-weight: 600; margin-bottom: 5px;">${msg.sender_name}</div>` : ''}
+                        <div>${msg.message}</div>
+                        <div style="font-size: 10px; opacity: 0.7; margin-top: 5px;">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('messagesArea').innerHTML = html;
+        document.getElementById('messagesArea').scrollTop = document.getElementById('messagesArea').scrollHeight;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
+        
+        if (!message || !currentRoomId) return;
+        
+        socket.emit('send_message', {
+            room_id: currentRoomId,
+            message: message
+        });
+        
+        input.value = '';
+        socket.emit('stop_typing', { room_id: currentRoomId });
+    }
+
+    function handleTyping() {
+        if (!currentRoomId) return;
+        
+        socket.emit('typing', { room_id: currentRoomId });
+        
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { room_id: currentRoomId });
+        }, 1000);
+    }
+
+    // Socket.IO listeners
+    socket.on('receive_message', (data) => {
+        if (currentRoomId) {
+            selectChatRoom(currentRoomId, currentRoomName);
+        }
+    });
+
+    socket.on('user_typing', (data) => {
+        if (data.user_id !== '{{ user.user_id }}') {
+            document.getElementById('typingIndicator').innerHTML = `${data.name} is typing...`;
+            document.getElementById('typingIndicator').style.display = 'block';
+        }
+    });
+
+    socket.on('user_stop_typing', (data) => {
+        document.getElementById('typingIndicator').style.display = 'none';
+    });
+
+    loadChatView();
+</script>
+{% endblock %}

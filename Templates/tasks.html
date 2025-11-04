@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div class="section-title" style="margin-bottom: 0;">
+        <i class="fas fa-tasks"></i>
+        My Tasks
+    </div>
+    <button class="btn btn-primary" onclick="createNewList()">
+        <i class="fas fa-plus"></i> Add List
+    </button>
+</div>
+
+<div id="tasksGrid" class="grid grid-3"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let taskLists = [];
+
+    async function loadTasksView() {
+        try {
+            const response = await fetch('/api/task-lists');
+            taskLists = await response.json();
+            renderTaskLists();
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+        }
+    }
+
+    function renderTaskLists() {
+        let html = '';
+        
+        taskLists.forEach(list => {
+            const completed = list.tasks.filter(t => t.completed).length;
+            const total = list.tasks.length;
+            
+            html += `
+                <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 0;">
+                    <div style="background: ${list.color}; padding: 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; cursor: pointer;" ondblclick="editListName(${list.id}, '${list.name}')">${list.name}</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="showAddTaskForm(${list.id})" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button onclick="deleteList(${list.id})" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div style="padding: 20px; max-height: 400px; overflow-y: auto;">
+            `;
+            
+            if (list.tasks.length === 0) {
+                html += '<p style="color: #94a3b8; text-align: center;">No tasks yet</p>';
+            } else {
+                list.tasks.forEach(task => {
+                    html += `
+                        <div style="display: flex; align-items: start; gap: 10px; padding: 10px; border-bottom: 1px solid #e2e8f0; position: relative; group;">
+                            <input type="checkbox" ${task.completed ? 'checked' : ''} 
+                                   onchange="toggleTask(${task.id}, this.checked, ${list.id})"
+                                   style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+                            <div style="flex: 1;">
+                                <div style="${task.completed ? 'text-decoration: line-through; color: #94a3b8;' : 'color: #1e293b;'}">
+                                    ${task.text}
+                                </div>
+                                ${task.notes ? `<div style="font-size: 12px; color: #64748b; margin-top: 5px;">${task.notes}</div>` : ''}
+                            </div>
+                            <button onclick="deleteTask(${task.id}, ${list.id})" 
+                                    style="background: transparent; border: none; color: #ef4444; cursor: pointer; opacity: 0; transition: opacity 0.2s;"
+                                    onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `
+                    </div>
+                    <div style="background: #f8fafc; padding: 15px; font-size: 14px; color: #64748b;">
+                        Completed: ${completed}/${total}
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (taskLists.length === 0) {
+            html = '<p style="grid-column: 1 / -1; text-align: center; color: #64748b;">No task lists. Click "Add List" to create one!</p>';
+        }
+        
+        document.getElementById('tasksGrid').innerHTML = html;
+    }
+
+    async function createNewList() {
+        const name = prompt('Enter list name:');
+        if (!name) return;
+        
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        
+        try {
+            const response = await fetchWithCSRF('/api/task-lists', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, color })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error creating list');
+        }
+    }
+
+    async function editListName(listId, currentName) {
+        const newName = prompt('Enter new list name:', currentName);
+        if (!newName || newName === currentName) return;
+        
+        try {
+            const response = await fetchWithCSRF('/api/task-lists', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: listId, name: newName })
+            });
+            
+            if (response.ok) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error updating list name');
+        }
+    }
+
+    async function deleteList(listId) {
+        if (!confirm('Delete this list and all its tasks?')) return;
+        
+        try {
+            const response = await fetchWithCSRF(`/api/task-lists?id=${listId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error deleting list');
+        }
+    }
+
+    async function showAddTaskForm(listId) {
+        const text = prompt('Enter task:');
+        if (!text) return;
+        
+        const notes = prompt('Enter notes (optional):') || '';
+        
+        await addTask(listId, text, notes);
+    }
+
+    async function addTask(listId, text, notes) {
+        try {
+            const response = await fetchWithCSRF('/api/tasks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ list_id: listId, text, notes })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error adding task');
+        }
+    }
+
+    async function toggleTask(taskId, completed, listId) {
+        try {
+            const response = await fetchWithCSRF('/api/tasks', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: taskId, completed: completed ? 1 : 0 })
+            });
+            
+            if (response.ok) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error updating task');
+        }
+    }
+
+    async function deleteTask(taskId, listId) {
+        try {
+            const response = await fetchWithCSRF(`/api/tasks?id=${taskId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                loadTasksView();
+            }
+        } catch (error) {
+            alert('Error deleting task');
+        }
+    }
+
+    loadTasksView();
+</script>
+{% endblock %}

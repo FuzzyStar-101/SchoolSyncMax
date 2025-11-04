@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="section-title">
+    <i class="fas fa-calendar-week"></i>
+    Weekly Calendar
+</div>
+
+<div id="calendarGrid" class="grid grid-3"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadCalendarView() {
+        try {
+            const response = await fetch('/api/schedule');
+            const schedule = await response.json();
+            
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+            
+            let html = '';
+            
+            days.forEach(day => {
+                const daySchedule = schedule[day] || [];
+                
+                html += `
+                    <div class="card" style="margin-bottom: 0;">
+                        <h3 style="margin-bottom: 15px; color: #1e293b; font-size: 20px;">${day}</h3>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                `;
+                
+                for (let i = 0; i < 5; i++) {
+                    const subject = daySchedule[i];
+                    if (subject) {
+                        html += `
+                            <div style="padding: 10px 15px; background: ${colors[i % colors.length]}; color: white; border-radius: 8px; font-size: 14px; font-weight: 600;">
+                                ${i + 1}. ${subject}
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += `
+                        </div>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">
+                            <i class="fas fa-book"></i> Check homework for updates
+                        </div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('calendarGrid').innerHTML = html;
+        } catch (error) {
+            console.error('Error loading calendar:', error);
+        }
+    }
+
+    loadCalendarView();
+</script>
+{% endblock %}
